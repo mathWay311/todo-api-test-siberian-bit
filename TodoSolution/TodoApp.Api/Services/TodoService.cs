@@ -8,7 +8,7 @@ namespace TodoApp.Api.Services;
 
 public class TodoService(TodoDbContext context, ILogger<TodoService> logger) : ITodoService
 {
-    public async Task<IEnumerable<TodoResponse>> GetAllAsync(bool? isCompleted, TodoPriority? priority)
+    public async Task<IEnumerable<TodoResponse>> GetAllAsync(bool? isCompleted, TodoPriority? priority, int page, int pageSize)
     {
         IQueryable<TodoItem> query = context.Todos.AsNoTracking();
 
@@ -18,7 +18,12 @@ public class TodoService(TodoDbContext context, ILogger<TodoService> logger) : I
         if (priority.HasValue)
             query = query.Where(t => t.Priority == priority.Value);
 
-        var items = await query.ToListAsync();
+        var items = await query
+            .OrderByDescending(t => t.CreatedAt) // Хороший тон - свежие сверху
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
+            .ToListAsync();
+
         return items.Select(t => t.ToResponse());
     }
 
@@ -82,5 +87,20 @@ public class TodoService(TodoDbContext context, ILogger<TodoService> logger) : I
         context.Todos.Remove(item);
         await context.SaveChangesAsync();
         return true;
+    }
+
+    public async Task<int> BulkCompleteAsync(IEnumerable<int> ids)
+{
+        var items = await context.Todos
+            .Where(t => ids.Contains(t.Id) && !t.IsCompleted)
+            .ToListAsync();
+
+        foreach (var item in items)
+        {
+            item.MarkAsCompleted();
+        }
+
+        await context.SaveChangesAsync();
+        return items.Count;
     }
 }
