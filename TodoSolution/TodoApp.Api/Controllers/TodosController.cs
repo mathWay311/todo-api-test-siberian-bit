@@ -10,9 +10,17 @@ namespace TodoApp.Api.Controllers;
 public class TodosController(ITodoService todoService) : ControllerBase
 {
     [HttpGet]
-    public async Task<ActionResult<IEnumerable<TodoResponse>>> GetAll([FromQuery] bool? isCompleted, [FromQuery] TodoPriority? priority)
+    public async Task<ActionResult<IEnumerable<TodoResponse>>> GetAll(
+        [FromQuery] bool? isCompleted, 
+        [FromQuery] TodoPriority? priority, 
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 10)
     {
-        var result = await todoService.GetAllAsync(isCompleted, priority);
+        if (page < 1) page = 1;
+        if (pageSize < 1 || pageSize > 100) pageSize = 10;
+
+        var result = await todoService.GetAllAsync(isCompleted, priority, page, pageSize);
+        
         return Ok(result);
     }
 
@@ -49,5 +57,17 @@ public class TodosController(ITodoService todoService) : ControllerBase
     {
         var result = await todoService.CompleteAsync(id);
         return result != null ? Ok(result) : NotFound();
+    }
+
+    [HttpPatch("bulk-complete")]
+    public async Task<ActionResult> BulkComplete([FromBody] int[] ids)
+    {
+        if (ids == null || ids.Length == 0)
+        {
+            return BadRequest("Список ID не может быть пустым");
+        }
+
+        var count = await todoService.BulkCompleteAsync(ids);
+        return Ok(new { Message = $"Успешно завершено задач: {count}" });
     }
 }
